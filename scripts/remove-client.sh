@@ -31,9 +31,39 @@ CLIENT_PUBLIC_KEY=$(cat "${CLIENT_DIR}/publickey")
 echo -e "${YELLOW}Removing client: ${CLIENT_NAME}${NC}"
 echo "Public key: ${CLIENT_PUBLIC_KEY}"
 
-# Remove client section from server config
-sed -i "/# Client: ${CLIENT_NAME}/,/^$/d" "$SERVER_CONFIG" 2>/dev/null || true
-sed -i "/PublicKey = ${CLIENT_PUBLIC_KEY}/,/^$/d" "$SERVER_CONFIG" 2>/dev/null || true
+# Remove client section from server config (including [Peer] header)
+# Find and remove the entire [Peer] block that contains this client
+awk -v client="$CLIENT_NAME" '
+    BEGIN { in_peer=0; skip=0; buffer="" }
+    /^\[Peer\]/ {
+        in_peer=1;
+        skip=0;
+        buffer=$0"\n"
+        next
+    }
+    in_peer && /^# Client:/ {
+        if ($0 ~ client) {
+            skip=1
+        }
+        buffer=buffer$0"\n"
+        next
+    }
+    in_peer && /^$/ {
+        if (!skip) {
+            printf "%s", buffer
+        }
+        in_peer=0
+        skip=0
+        buffer=""
+        print
+        next
+    }
+    in_peer {
+        buffer=buffer$0"\n"
+        next
+    }
+    { print }
+' "$SERVER_CONFIG" > "${SERVER_CONFIG}.tmp" && mv "${SERVER_CONFIG}.tmp" "$SERVER_CONFIG"
 
 # Remove client directory
 rm -rf "$CLIENT_DIR"

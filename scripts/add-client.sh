@@ -58,7 +58,7 @@ echo -e "${GREEN}Assigned IP: ${CLIENT_IP}${NC}"
 echo -e "${YELLOW}Generating client keys...${NC}"
 
 CLIENT_PRIVATE_KEY=$(docker exec amneziawg-server awg genkey)
-CLIENT_PUBLIC_KEY=$(echo "$CLIENT_PRIVATE_KEY" | docker exec -i amneziawg-server awg pubkey)
+CLIENT_PUBLIC_KEY=$(printf "%s" "$CLIENT_PRIVATE_KEY" | docker exec -i amneziawg-server awg pubkey)
 PRESHARED_KEY=$(docker exec amneziawg-server awg genpsk)
 
 # Save keys
@@ -73,7 +73,7 @@ if [ -f "$SERVER_KEYS" ]; then
 else
     # Fallback: derive from private key in config
     SERVER_PRIVATE_KEY=$(grep '^PrivateKey' "$SERVER_CONFIG" | awk '{print $3}')
-    SERVER_PUBLIC_KEY=$(echo "$SERVER_PRIVATE_KEY" | docker exec -i amneziawg-server awg pubkey)
+    SERVER_PUBLIC_KEY=$(printf "%s" "$SERVER_PRIVATE_KEY" | docker exec -i amneziawg-server awg pubkey)
 fi
 
 # Read server settings from docker-compose environment or use defaults
