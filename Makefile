@@ -77,7 +77,16 @@ show-qr:
 		echo "ERROR: NAME parameter required. Usage: make show-qr NAME=myclient"; \
 		exit 1; \
 	fi
-	@python3 ./scripts/show-qr.py "$(NAME)"
+	@if [ ! -f ./config/clients/$(NAME)/$(NAME).conf ]; then \
+		echo "ERROR: Client '$(NAME)' not found!"; \
+		exit 1; \
+	fi
+	@echo "=== QR Code for client: $(NAME) ==="
+	@echo ""
+	@docker exec amneziawg-server python3 -c 'import qrcode; import sys; qr = qrcode.QRCode(version=1, box_size=1, border=1); qr.add_data(sys.stdin.read()); qr.make(fit=True); qr.print_ascii(invert=True)' < ./config/clients/$(NAME)/$(NAME).conf
+	@echo ""
+	@echo "Scan this QR code with AmneziaWG mobile app"
+	@echo ""
 
 clean:
 	@echo "WARNING: This will remove ALL configs including server keys!"
