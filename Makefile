@@ -23,29 +23,29 @@ help:
 	@echo "  make clean             - Remove all configs (DANGEROUS)"
 	@echo ""
 	@echo "Configuration:"
-	@echo "  Edit docker-compose.yml environment section"
+	@echo "  Edit docker compose.yml environment section"
 	@echo ""
 
 build:
-	docker-compose build
+	docker compose build
 
 start:
-	docker-compose up -d
+	docker compose up -d
 	@echo "Server starting! Use 'make logs' to watch startup"
 
 stop:
-	docker-compose down
+	docker compose down
 
 restart:
-	docker-compose restart
+	docker compose restart
 	@echo "Server restarted!"
 
 logs:
-	docker-compose logs -f
+	docker compose logs -f
 
 status:
 	@echo "Container status:"
-	@docker-compose ps
+	@docker compose ps
 	@echo ""
 	@echo "Interface status:"
 	@docker exec amneziawg-server awg show 2>/dev/null || echo "Server not running"

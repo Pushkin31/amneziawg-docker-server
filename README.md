@@ -1,359 +1,429 @@
-# AmneziaWG Server Docker Setup
+# AmneziaWG Server
 
-Docker container for AmneziaWG server with traffic obfuscation support for bypassing DPI (Deep Packet Inspection).
+Docker-based AmneziaWG server with automatic configuration and traffic obfuscation for bypassing DPI (Deep Packet Inspection).
 
 ## Features
 
-- **Traffic Obfuscation** - Built-in DPI bypass using junk packets and header randomization
-- **Docker-based** - Easy deployment and management
-- **Client Management** - Scripts for adding/removing clients
-- **NAT & Routing** - Automatic network configuration
-- **Secure by default** - Uses PresharedKeys for additional security
+- **🔐 Auto-initialization** - Keys and config generated automatically on first start
+- **🎭 Traffic Obfuscation** - DPI bypass with configurable junk packets
+- **🐳 Docker-based** - One-command deployment
+- **👥 Client Management** - Simple scripts for adding/removing clients
+- **🔄 Idempotent** - Safe restarts without losing configuration
+- **🛡️ Secure** - PresharedKeys for quantum resistance
+
+## Quick Start
+
+### 1. Configure
+
+Edit settings in `docker-compose.yml`:
+
+```yaml
+environment:
+  - SERVER_IP=YOUR_PUBLIC_IP     # ← Change this!
+  - LISTEN_PORT=51820
+  - VPN_NETWORK=10.8.0.0/24
+```
+
+### 2. Deploy
+
+```bash
+make build    # Build image
+make start    # Start server (auto-generates config)
+```
+
+### 3. Add Clients
+
+```bash
+make add-client NAME=laptop
+make restart
+```
+
+### 4. Get Client Config
+
+```bash
+cat config/clients/laptop/laptop.conf
+```
+
+Send this file to your client!
 
 ## File Structure
 
 ```
 .
-├── docker-compose.yml           # Docker Compose configuration
-├── Dockerfile                   # Build image from sources
-├── server.conf.example          # Server configuration example
-├── server.conf                  # Your server config (create from example)
-├── clients/                     # Client configurations (auto-generated)
+├── docker-compose.yml      # ← Configuration (EDIT THIS!)
+├── Dockerfile              # Build image
+├── Makefile                # Management commands
+├── config/                 # Auto-generated (in .gitignore)
+│   ├── server.conf        # Server config (auto-created)
+│   ├── server.keys        # Server keys (auto-created)
+│   └── clients/           # Client configs
+│       └── laptop/
+│           └── laptop.conf
 └── scripts/
-    ├── entrypoint.sh           # Container startup script
-    ├── add-client.sh           # Add new client
-    ├── remove-client.sh        # Remove client
-    ├── list-clients.sh         # List all clients
-    └── show-client-qr.sh       # Show client QR code
+    ├── entrypoint.sh      # Auto-init logic
+    ├── add-client.sh      # Add client
+    ├── list-clients.sh    # List clients
+    └── remove-client.sh   # Remove client
 ```
 
-## Quick Start
+## Configuration
 
-### 1. Initial Setup
+### Server Settings
 
-Generate server keys and create configuration:
+Edit `docker-compose.yml`:
 
-```bash
-# Install amneziawg-tools (if not in Docker)
-# Or use the client container to generate keys
+```yaml
+environment:
+  # Server network settings
+  - SERVER_IP=1.2.3.4              # Your server's public IP
+  - LISTEN_PORT=51820              # UDP port
+  - VPN_NETWORK=10.8.0.0/24       # VPN subnet
+  - EXT_INTERFACE=eth0             # External interface for NAT
 
-# Generate server keys
-docker run --rm -it alpine sh -c "apk add wget unzip && \
-  cd /tmp && \
-  wget https://github.com/amnezia-vpn/amneziawg-tools/releases/download/v1.0.20250901/alpine-3.19-amneziawg-tools.zip && \
-  unzip -j alpine-3.19-amneziawg-tools.zip && \
-  ./awg genkey"
+  # AmneziaWG obfuscation parameters
+  - AWG_JC=4                       # Junk packets (1-128)
+  - AWG_JMIN=50                    # Min junk size
+  - AWG_JMAX=1000                  # Max junk size (max 1280)
+  - AWG_S1=0                       # Handshake init garbage
+  - AWG_S2=0                       # Handshake response garbage
+  - AWG_H1=1                       # Header params
+  - AWG_H2=2
+  - AWG_H3=3
+  - AWG_H4=4
 ```
 
-Save the output (private key) and generate the public key:
+**Important**: All clients MUST use the same obfuscation parameters!
+
+### Obfuscation Presets
+
+| Preset | Jc | Jmin | Jmax | Use Case |
+|--------|----|----|------|----------|
+| Light | 3 | 40 | 70 | Low overhead |
+| **Medium** | 4 | 50 | 1000 | **Recommended** |
+| Heavy | 10 | 50 | 1000 | Maximum stealth |
+| None | 0 | 0 | 0 | Standard WireGuard |
+
+## Management Commands
 
 ```bash
-echo 'YOUR_PRIVATE_KEY' | docker run --rm -i alpine sh -c "apk add wget unzip && \
-  cd /tmp && \
-  wget https://github.com/amnezia-vpn/amneziawg-tools/releases/download/v1.0.20250901/alpine-3.19-amneziawg-tools.zip && \
-  unzip -j alpine-3.19-amneziawg-tools.zip && \
-  ./awg pubkey"
-```
+# Setup
+make build             # Build Docker image
+make start             # Start server (auto-init)
 
-### 2. Create Server Configuration
+# Operations
+make stop              # Stop server
+make restart           # Restart server
+make logs              # View logs
+make status            # Show status and peers
 
-```bash
-cp server.conf.example server.conf
-nano server.conf
-```
+# Clients
+make clients                    # List all clients
+make add-client NAME=laptop     # Add client
+make remove-client NAME=laptop  # Remove client
 
-**Important**: Edit these fields:
-- `PrivateKey` - Your server's private key (from step 1)
-- `ListenPort` - UDP port (default: 51820)
-- `Jc, Jmin, Jmax, S1, S2, H1-H4` - Obfuscation parameters (must match on all clients!)
-- `PostUp/PostDown` - Change `eth0` to your external interface if needed
-
-### 3. Configure Server Endpoint
-
-Set your server's public IP for client configs:
-
-```bash
-export SERVER_ENDPOINT="YOUR_PUBLIC_IP:51820"
-```
-
-Or edit `scripts/add-client.sh` and change the default.
-
-### 4. Build and Start Server
-
-```bash
-# Build the image
-docker-compose build
-
-# Start the server
-docker-compose up -d
-
-# Check logs
-docker-compose logs -f
-```
-
-### 5. Add Your First Client
-
-```bash
-./scripts/add-client.sh laptop
-```
-
-This will:
-- Generate client keys
-- Create client config in `clients/laptop/laptop.conf`
-- Add peer to server config
-- Assign IP address automatically
-
-**Important**: Restart server after adding clients:
-
-```bash
-docker-compose restart
-```
-
-### 6. Get Client Configuration
-
-**Option A**: Copy config file
-```bash
-cat clients/laptop/laptop.conf
-```
-
-**Option B**: Show QR code (for mobile)
-```bash
-./scripts/show-client-qr.sh laptop
+# Maintenance
+make clean             # Remove all configs (DANGEROUS!)
 ```
 
 ## Client Management
 
-### Add New Client
+### Add Client
 
 ```bash
-./scripts/add-client.sh <client-name>
-docker-compose restart
+make add-client NAME=mylaptop
+make restart
 ```
+
+This will:
+1. Generate client keys
+2. Assign IP automatically (10.8.0.2, 10.8.0.3, etc.)
+3. Copy obfuscation params from server
+4. Create `config/clients/mylaptop/mylaptop.conf`
+5. Add peer to server config
+
+### Get Client Config
+
+```bash
+# View config
+cat config/clients/mylaptop/mylaptop.conf
+
+# Copy to clipboard (Linux)
+cat config/clients/mylaptop/mylaptop.conf | xclip -selection clipboard
+
+# Copy to clipboard (macOS)
+cat config/clients/mylaptop/mylaptop.conf | pbcopy
+```
+
+Send this config to your client device.
 
 ### Remove Client
 
 ```bash
-./scripts/remove-client.sh <client-name>
-docker-compose restart
+make remove-client NAME=mylaptop
+make restart
 ```
 
-### List All Clients
+### List Clients
 
 ```bash
-./scripts/list-clients.sh
+make clients
 ```
 
-### View Server Status
+Output:
+```
+Client: laptop
+  IP: 10.8.0.2/32
+  Public Key: abc123...
 
-```bash
-# Show all peers and traffic
-docker exec amneziawg-server awg show
-
-# Show specific interface
-docker exec amneziawg-server awg show awg0
+Client: phone
+  IP: 10.8.0.3/32
+  Public Key: def456...
 ```
 
-## Obfuscation Parameters Explained
+## How It Works
 
-AmneziaWG uses these parameters to disguise VPN traffic from DPI systems:
+### First Start
 
-| Parameter | Description | Range | Recommended |
-|-----------|-------------|-------|-------------|
-| **Jc** | Number of junk packets before handshake | 1-128 | 3-10 |
-| **Jmin** | Minimum junk packet size (bytes) | - | 50 |
-| **Jmax** | Maximum junk packet size (bytes) | max 1280 | 1000 |
-| **S1** | Garbage bytes in init handshake | - | 0 |
-| **S2** | Garbage bytes in response handshake | - | 0 |
-| **H1-H4** | Header randomization parameters | - | 1,2,3,4 |
+1. You run `make start`
+2. `entrypoint.sh` checks if `config/server.keys` exists
+3. **If not** → generates keys with `awg genkey`
+4. Checks if `config/server.conf` exists
+5. **If not** → creates config from `docker-compose.yml` environment
+6. Starts WireGuard interface
 
-**Important**:
-- All clients MUST use the same parameters as the server!
-- Higher values = better obfuscation but slightly more overhead
-- Setting all to 0/default = regular WireGuard behavior
+### Subsequent Starts
 
-### Example Configurations
+1. `entrypoint.sh` finds existing `config/server.keys` → **skips generation**
+2. Finds existing `config/server.conf` → **skips creation**
+3. Uses existing config
+4. **Keys and peers preserved!**
 
-**Light obfuscation** (lower overhead):
-```
-Jc = 3
-Jmin = 40
-Jmax = 70
-S1 = 10
-S2 = 20
-```
-
-**Heavy obfuscation** (maximum stealth):
-```
-Jc = 10
-Jmin = 50
-Jmax = 1000
-S1 = 50
-S2 = 50
-```
+This means:
+- ✅ Safe to restart
+- ✅ Keys never change
+- ✅ Clients stay connected
+- ✅ Configuration persists
 
 ## Networking
 
 ### Port Forwarding
 
-Make sure UDP port is accessible:
+Open UDP port on firewall:
 
 ```bash
-# Check if port is open
-sudo ss -ulpn | grep 51820
-
-# Open firewall (example for ufw)
+# UFW
 sudo ufw allow 51820/udp
+
+# iptables
+sudo iptables -A INPUT -p udp --dport 51820 -j ACCEPT
+
+# Check if port is listening
+sudo ss -ulpn | grep 51820
 ```
 
-### Change Network Interface
+### NAT Configuration
 
-If your external interface is not `eth0`, edit `server.conf`:
+If your external interface is not `eth0`:
 
 ```bash
 # Find your interface
 ip route | grep default
 
-# Update PostUp/PostDown rules
-PostUp = iptables ... -o YOUR_INTERFACE ...
-PostDown = iptables ... -o YOUR_INTERFACE ...
+# Update docker-compose.yml
+- EXT_INTERFACE=ens3  # or whatever your interface is
 ```
 
 ## Troubleshooting
 
 ### Server doesn't start
 
-Check logs:
+**Check logs:**
 ```bash
-docker-compose logs
+make logs
 ```
 
-Common issues:
-- Missing `server.conf` - create from example
-- Invalid config syntax - check with `awg show`
-- Port already in use - change `ListenPort`
+**Common issues:**
+- Missing `/dev/net/tun` → Add to docker-compose (already included)
+- Port in use → Change `LISTEN_PORT`
+- Wrong interface → Check `EXT_INTERFACE`
 
 ### Clients can't connect
 
-1. Verify obfuscation parameters match server:
+**1. Verify obfuscation params match:**
 ```bash
-grep -E "^(Jc|Jmin|Jmax|S1|S2|H1|H2|H3|H4)" server.conf
+grep -E "^(Jc|Jmin|Jmax)" config/server.conf
+grep -E "^(Jc|Jmin|Jmax)" config/clients/laptop/laptop.conf
 ```
 
-2. Check firewall:
+**2. Check server endpoint:**
+```bash
+grep Endpoint config/clients/laptop/laptop.conf
+# Should show: Endpoint = YOUR_SERVER_IP:51820
+```
+
+**3. Verify firewall:**
 ```bash
 sudo ss -ulpn | grep 51820
 ```
 
-3. Verify server endpoint in client config is correct
-
 ### No internet on client
 
-1. Check IP forwarding:
+**1. Check IP forwarding:**
 ```bash
 docker exec amneziawg-server sysctl net.ipv4.ip_forward
 # Should return: net.ipv4.ip_forward = 1
 ```
 
-2. Verify NAT rules:
+**2. Verify NAT:**
 ```bash
 docker exec amneziawg-server iptables -t nat -L POSTROUTING
 ```
 
-3. Check `AllowedIPs` in client config:
-```
-AllowedIPs = 0.0.0.0/0, ::/0
-```
-
-## Advanced Configuration
-
-### Enable Debug Logging
-
-Edit `docker-compose.yml`:
-```yaml
-environment:
-  - LOG_LEVEL=debug
-```
-
-Restart:
+**3. Check AllowedIPs in client config:**
 ```bash
-docker-compose restart
+grep AllowedIPs config/clients/laptop/laptop.conf
+# Should be: AllowedIPs = 0.0.0.0/0, ::/0
+```
+
+### Config not updating after changing docker-compose.yml
+
+**Reason**: Config already exists, won't be overwritten
+
+**Solution**:
+```bash
+# Option 1: Recreate config
+rm config/server.conf
+make restart
+
+# Option 2: Edit manually
+nano config/server.conf
+make restart
+```
+
+### Keys lost after restart
+
+**This should NEVER happen!**
+
+Keys are stored in `./config` which is mounted as a volume.
+
+**If it happens anyway:**
+```bash
+# Restore from backup
+tar xzf backup.tar.gz
+
+# Or check if volume still exists
+docker volume ls
+docker inspect amneziawg-server
+```
+
+## Advanced
+
+### Debug Mode
+
+Enable verbose logging:
+
+```yaml
+# docker-compose.yml
+environment:
+  - LOG_LEVEL=debug  # ← Change this
+```
+
+Then:
+```bash
+make restart && make logs
 ```
 
 ### Custom DNS
 
-Add to `server.conf` under `[Interface]`:
-```
-DNS = 1.1.1.1, 8.8.8.8
+```yaml
+environment:
+  - DNS=9.9.9.9  # Quad9
+  # or
+  - DNS=8.8.8.8  # Google
 ```
 
 ### IPv6 Support
 
-Add IPv6 address in `server.conf`:
+**In `docker-compose.yml`:**
+```yaml
+environment:
+  - VPN_NETWORK=10.8.0.0/24,fd00::/64
 ```
+
+**Then edit** `config/server.conf`:
+```ini
 Address = 10.8.0.1/24, fd00::1/64
 ```
 
-And in client configs:
-```
-Address = 10.8.0.2/32, fd00::2/128
+**Client configs will need:**
+```ini
 AllowedIPs = 0.0.0.0/0, ::/0
 ```
 
-### Split Tunnel (route only specific traffic)
+### Split Tunnel
 
-In client config, change `AllowedIPs`:
-```
+To route only specific traffic through VPN:
+
+**Edit client config:**
+```ini
 # Only route 10.0.0.0/8 through VPN
 AllowedIPs = 10.0.0.0/8
 ```
 
+### Backup
+
+```bash
+# Backup config
+tar czf amneziawg-backup-$(date +%Y%m%d).tar.gz config/
+
+# Restore
+tar xzf amneziawg-backup-20250103.tar.gz
+make start
+```
+
+### Migration
+
+**Old server:**
+```bash
+tar czf config-backup.tar.gz config/
+scp config-backup.tar.gz newserver:/opt/gitrepo/amneziaWG-server/
+```
+
+**New server:**
+```bash
+tar xzf config-backup.tar.gz
+make build && make start
+```
+
 ## Security Notes
 
-1. **Keep private keys secure** - Never share `server.conf` or `clients/*/privatekey`
-2. **Use strong parameters** - Don't set all obfuscation to 0 in censored regions
-3. **Regular updates** - Rebuild image periodically for security updates
-4. **Firewall** - Only open necessary ports (51820/udp)
-5. **PresharedKeys** - Always enabled for quantum-resistance
+1. **Keep `config/` secure** - Contains private keys
+2. **Don't commit `config/`** - Already in `.gitignore`
+3. **Use strong obfuscation** in censored regions
+4. **Regular updates**: `git pull && make build && make restart`
+5. **Firewall**: Only open necessary ports
 
 ## Requirements
 
 - Docker 20.10+
 - Docker Compose 1.29+
-- Linux kernel with TUN/TAP and WireGuard support
-- Public IP address or port forwarding
-- Open UDP port
+- Linux kernel with TUN/TAP support
+- Public IP or port forwarding
+- UDP port accessible from internet
 
-## Updating
+## Architecture
 
-```bash
-# Pull latest code
-git pull
+See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed architecture documentation.
 
-# Rebuild image
-docker-compose build --no-cache
+## Testing
 
-# Restart
-docker-compose up -d
-```
-
-## Uninstall
-
-```bash
-# Stop and remove container
-docker-compose down
-
-# Remove image
-docker rmi amneziawg-server
-
-# Remove configs (CAREFUL!)
-# rm -rf server.conf clients/
-```
+See [TESTING.md](TESTING.md) for test results.
 
 ## References
 
 - [AmneziaVPN Official](https://amnezia.org/)
-- [amneziawg-go Repository](https://github.com/amnezia-vpn/amneziawg-go)
-- [WireGuard Documentation](https://www.wireguard.com/)
+- [amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go)
+- [WireGuard](https://www.wireguard.com/)
 
 ## License
 
