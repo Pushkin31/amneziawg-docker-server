@@ -38,6 +38,9 @@ RUN mkdir -p /etc/amnezia/amneziawg
 
 WORKDIR /etc/amnezia/amneziawg
 
+COPY scripts ./scripts
+RUN chmod +x ./scripts/*.py
+
 COPY scripts/entrypoint.py /entrypoint.py
 RUN chmod +x /entrypoint.py
 
