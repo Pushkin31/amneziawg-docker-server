@@ -2,3 +2,6 @@ ARCHITECTURE.md
 TESTING.md
 config/
 *.log
+.env
+INSTRUCTIONS.md
+.DS_Store

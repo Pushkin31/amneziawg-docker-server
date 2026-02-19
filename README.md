@@ -10,19 +10,29 @@ Docker-based AmneziaWG server with automatic configuration and traffic obfuscati
 - **👥 Client Management** - Python scripts with key validation and race condition protection
 - **🔄 Idempotent** - Safe restarts without losing configuration
 - **🛡️ Secure** - PresharedKeys for quantum resistance, proper key handling via stdin
+- **🔧 MSS Clamping** - Automatic MTU optimization for mobile networks
+- **⚙️ Environment-based Config** - Easy configuration using .env file
+- **📱 QR Code Generation** - Direct QR code generation for mobile clients
 
 ## Quick Start
 
 ### 1. Configure
 
-Edit settings in `docker-compose.yml`:
+Create `.env` file with your settings:
 
-```yaml
-environment:
-  - SERVER_IP=YOUR_PUBLIC_IP     # ← Change this!
-  - LISTEN_PORT=51820
-  - VPN_NETWORK=10.8.0.0/24
+```bash
+cp .env.example .env
+# Edit the values in .env
+nano .env
 ```
+
+Required settings:
+- `SERVER_IP`: Your server's public IP address
+- `LISTEN_PORT`: UDP port for WireGuard (default: 51821)
+- `VPN_NETWORK`: VPN subnet (default: 10.201.0.0/24)
+- `EXT_INTERFACE`: External network interface (default: eth0)
+
+**Important**: Check your external interface name with `ip route get 8.8.8.8`
 
 ### 2. Deploy
 
@@ -50,7 +60,8 @@ Send this file to your client!
 
 ```
 .
-├── docker-compose.yml      # ← Configuration (EDIT THIS!)
+├── .env                    # ← Configuration (EDIT THIS!)
+├── docker-compose.yml      # Docker configuration
 ├── Dockerfile              # Build image
 ├── Makefile                # Management commands
 ├── config/                 # Auto-generated (in .gitignore)
@@ -71,38 +82,73 @@ Send this file to your client!
 
 ### Server Settings
 
-Edit `docker-compose.yml`:
+Create `.env` file with your settings (use `.env.example` as template):
 
-```yaml
-environment:
-  # Server network settings
-  - SERVER_IP=1.2.3.4              # Your server's public IP
-  - LISTEN_PORT=51820              # UDP port
-  - VPN_NETWORK=10.8.0.0/24       # VPN subnet
-  - EXT_INTERFACE=eth0             # External interface for NAT
+```bash
+# Copy example file
+cp .env.example .env
+# Edit the values in .env
+nano .env
+```
 
-  # AmneziaWG obfuscation parameters
-  - AWG_JC=4                       # Junk packets (1-128)
-  - AWG_JMIN=50                    # Min junk size
-  - AWG_JMAX=1000                  # Max junk size (max 1280)
-  - AWG_S1=0                       # Handshake init garbage
-  - AWG_S2=0                       # Handshake response garbage
-  - AWG_H1=1                       # Header params
-  - AWG_H2=2
-  - AWG_H3=3
-  - AWG_H4=4
+**.env example:**
+```env
+# Server network settings
+SERVER_IP=your_server_ip_here
+LISTEN_PORT=51821
+VPN_NETWORK=10.201.0.0/24
+EXT_INTERFACE=eth0
+
+# AmneziaWG obfuscation parameters
+AWG_JC=4
+AWG_JMIN=40
+AWG_JMAX=70
+AWG_S1=0
+AWG_S2=0
+AWG_S3=0
+AWG_S4=0
+AWG_H1=1
+AWG_H2=2
+AWG_H3=3
+AWG_H4=4
+AWG_I1=1
+AWG_I2=2
+AWG_I3=3
+AWG_I4=4
+AWG_I5=5
+
+# Container settings
+LOG_LEVEL=info
+INTERFACE=awg0
+DNS=1.1.1.1
 ```
 
 **Important**: All clients MUST use the same obfuscation parameters!
 
+### Obfuscation Parameters
+
+AmneziaWG supports advanced obfuscation parameters:
+- `AWG_JC`: Junk packets count (1-128)
+- `AWG_JMIN/JMAX`: Min/max junk packet sizes
+- `AWG_S1-S4`: Handshake garbage parameters
+- `AWG_H1-H4`: Header parameters
+- `AWG_I1-I5`: Additional header parameters
+
 ### Obfuscation Presets
 
-| Preset | Jc | Jmin | Jmax | Use Case |
-|--------|----|----|------|----------|
-| Light | 3 | 40 | 70 | Low overhead |
-| **Medium** | 4 | 50 | 1000 | **Recommended** |
-| Heavy | 10 | 50 | 1000 | Maximum stealth |
-| None | 0 | 0 | 0 | Standard WireGuard |
+| Preset | Jc | Jmin | Jmax | S1-S4 | H1-H4 | I1-I5 | Use Case |
+|--------|----|----|------|-------|-------|-------|----------|
+| Light | 4 | 40 | 70 | 0 | 1,2,3,4 | 1,2,3,4,5 | Low overhead, good for mobile |
+| **Medium** | 4 | 50 | 1000 | 0 | 1,2,3,4 | 1,2,3,4,5 | **Recommended** |
+| Heavy | 10 | 50 | 1000 | 0 | 1,2,3,4 | 1,2,3,4,5 | Maximum stealth |
+| None | 0 | 0 | 0 | 0 | 0 | 0 | Standard WireGuard |
+
+### Network Configuration
+
+- **LISTEN_PORT**: Default 51821 (changed from 12235 to avoid conflicts)
+- **VPN_NETWORK**: Default 10.201.0.0/24
+- **EXT_INTERFACE**: Usually eth0 (check with `ip route get 8.8.8.8`)
+- **DNS**: DNS for clients (default: 1.1.1.1)
 
 ## Management Commands
 
@@ -222,17 +268,17 @@ This means:
 
 ### Port Forwarding
 
-Open UDP port on firewall:
+Open UDP port on firewall (default 51821):
 
 ```bash
 # UFW
-sudo ufw allow 51820/udp
+sudo ufw allow 51821/udp
 
 # iptables
-sudo iptables -A INPUT -p udp --dport 51820 -j ACCEPT
+sudo iptables -A INPUT -p udp --dport 51821 -j ACCEPT
 
 # Check if port is listening
-sudo ss -ulpn | grep 51820
+sudo ss -ulpn | grep 51821
 ```
 
 ### NAT Configuration
@@ -336,16 +382,33 @@ docker inspect amneziawg-server
 
 Enable verbose logging:
 
-```yaml
-# docker-compose.yml
-environment:
-  - LOG_LEVEL=debug  # ← Change this
+```env
+# .env
+LOG_LEVEL=debug
 ```
 
 Then:
 ```bash
 make restart && make logs
 ```
+
+### MSS Clamping
+
+The server automatically applies MSS clamping for better mobile network compatibility:
+
+```bash
+iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu
+```
+
+This fixes MTU issues on mobile networks and improves connection stability.
+
+### Additional Obfuscation Parameters
+
+AmneziaWG supports extended obfuscation parameters:
+- `AWG_S3`, `AWG_S4`: Additional handshake garbage
+- `AWG_I1-I5`: Extended header parameters
+
+These are automatically applied to both server and client configurations.
 
 ### Custom DNS
 
@@ -445,6 +508,8 @@ Simply scan the QR code with AmneziaWG mobile app to import the configuration.
 4. **Regular updates**: `git pull && make build && make restart`
 5. **Firewall**: Only open necessary ports
 6. **Key validation** - All keys are validated to be exactly 44 characters
+7. **Environment security** - Keep `.env` file secure with sensitive configuration
+8. **Userspace implementation** - Uses `WG_I_PREFER_BUGGY_USERSPACE_TO_POLISHED_KERNEL=1` for compatibility
 
 ## Requirements
 

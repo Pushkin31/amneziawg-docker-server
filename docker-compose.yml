@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   amneziawg-server:
     container_name: amneziawg-server
@@ -14,25 +12,37 @@ services:
     volumes:
       - ./config:/etc/amnezia/amneziawg/config
     network_mode: host
+    env_file:
+      - .env
     environment:
+      # Force userspace implementation (fix for "Protocol not supported" on kernels with standard WireGuard)
+      - WG_I_PREFER_BUGGY_USERSPACE_TO_POLISHED_KERNEL=1
+
       # Server network settings (EDIT THESE!)
-      - SERVER_IP=33.33.33.33             # Your server's public IP
-      - LISTEN_PORT=12235                 # UDP port for WireGuard
-      - VPN_NETWORK=10.201.0.0/24         # VPN subnet
-      - EXT_INTERFACE=eth0                # External network interface
+      - SERVER_IP=${SERVER_IP}             # Your server's public IP
+      - LISTEN_PORT=${LISTEN_PORT}         # UDP port for WireGuard (changed from 12235 to avoid conflicts)
+      - VPN_NETWORK=${VPN_NETWORK}         # VPN subnet
+      - EXT_INTERFACE=${EXT_INTERFACE}     # External network interface (check with `ip route get 8.8.8.8`)
 
       # AmneziaWG obfuscation parameters
-      - AWG_JC=4                          # Junk packets count (1-128)
-      - AWG_JMIN=40                       # Min junk packet size
-      - AWG_JMAX=70                       # Max junk packet size
-      - AWG_S1=0                          # Handshake init garbage
-      - AWG_S2=0                          # Handshake response garbage
-      - AWG_H1=1                          # Header param 1
-      - AWG_H2=2                          # Header param 2
-      - AWG_H3=3                          # Header param 3
-      - AWG_H4=4                          # Header param 4
+      - AWG_JC=${AWG_JC}                          # Junk packets count (1-128)
+      - AWG_JMIN=${AWG_JMIN}                      # Min junk packet size
+      - AWG_JMAX=${AWG_JMAX}                      # Max junk packet size
+      - AWG_S1=${AWG_S1}                          # Handshake init garbage
+      - AWG_S2=${AWG_S2}                          # Handshake response garbage
+      - AWG_S3=${AWG_S3}                          # Handshake response garbage
+      - AWG_S4=${AWG_S4}                          # Handshake response garbage
+      - AWG_H1=${AWG_H1}                          # Header param 1
+      - AWG_H2=${AWG_H2}                          # Header param 2
+      - AWG_H3=${AWG_H3}                          # Header param 3
+      - AWG_H4=${AWG_H4}                          # Header param 4
+      - AWG_I1=${AWG_I1}                          # Header param 1
+      - AWG_I2=${AWG_I2}                          # Header param 2
+      - AWG_I3=${AWG_I3}                          # Header param 3
+      - AWG_I4=${AWG_I4}                          # Header param 4
+      - AWG_I5=${AWG_I5}                          # Header param 4
 
       # Container settings
-      - LOG_LEVEL=info                    # info or debug
-      - INTERFACE=awg0                    # Interface name
-      - DNS=1.1.1.1                       # DNS for clients
+      - LOG_LEVEL=${LOG_LEVEL}                    # info or debug
+      - INTERFACE=${INTERFACE}                    # Interface name
+      - DNS=${DNS}                                # DNS for clients

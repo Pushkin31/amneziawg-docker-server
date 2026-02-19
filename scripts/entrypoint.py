@@ -102,10 +102,17 @@ def main():
         awg_jmax = os.getenv('AWG_JMAX', '1000')
         awg_s1 = os.getenv('AWG_S1', '0')
         awg_s2 = os.getenv('AWG_S2', '0')
+        awg_s3 = os.getenv('AWG_S3', '0')
+        awg_s4 = os.getenv('AWG_S4', '0')
         awg_h1 = os.getenv('AWG_H1', '1')
         awg_h2 = os.getenv('AWG_H2', '2')
         awg_h3 = os.getenv('AWG_H3', '3')
         awg_h4 = os.getenv('AWG_H4', '4')
+        awg_i1 = os.getenv('AWG_I1', '0')
+        awg_i2 = os.getenv('AWG_I2', '0')
+        awg_i3 = os.getenv('AWG_I3', '0')
+        awg_i4 = os.getenv('AWG_I4', '0')
+        awg_i5 = os.getenv('AWG_I5', '0')
 
         config_content = f"""# AmneziaWG Server Configuration
 # Auto-generated on {time.strftime('%c')}
@@ -127,10 +134,17 @@ Jmin = {awg_jmin}
 Jmax = {awg_jmax}
 S1 = {awg_s1}
 S2 = {awg_s2}
+S3 = {awg_s3}
+S4 = {awg_s4}
 H1 = {awg_h1}
 H2 = {awg_h2}
 H3 = {awg_h3}
 H4 = {awg_h4}
+I1 = {awg_i1}
+I2 = {awg_i2}
+I3 = {awg_i3}
+I4 = {awg_i4}
+I5 = {awg_i5}
 
 # NAT and routing
 PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT; iptables -t nat -A POSTROUTING -o {ext_interface} -j MASQUERADE
