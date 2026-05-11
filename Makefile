@@ -24,7 +24,7 @@ help:
 	@echo "  make clean             - Remove all configs (DANGEROUS)"
 	@echo ""
 	@echo "Configuration:"
-	@echo "  Edit docker compose.yml environment section"
+	@echo "  Edit .env file with your settings"
 	@echo ""
 
 build:
